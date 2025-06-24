@@ -1,8 +1,53 @@
-# 正确的工作流文件开头
-name: Android Build  # 这是有效的名称定义
+name: Bluetooth Remote Control Build
 
-on: [push, workflow_dispatch]  # 顶格写触发事件
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build:  # 作业定义
+  android-build:
+    name: Build Android APK
     runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          build-tools-version: '34.0.0'
+          platform-version: 'android-34'
+          sdk-licenses: true
+          
+      - name: Create Gradle wrapper
+        run: |
+          # 确保有执行权限
+          if [ ! -f "gradlew" ]; then
+            ./gradle-8.4/bin/gradle wrapper --gradle-version=8.4
+            chmod +x gradlew
+          fi
+          
+      - name: Create local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          cat local.properties
+          
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+          
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bluetooth-app
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7
