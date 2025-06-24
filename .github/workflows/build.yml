@@ -1,40 +1,82 @@
-name: Build Bluetooth Remote
+name: Build Android App
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      JAVA_VERSION: '17'
+      ANDROID_SDK_VERSION: '9477386'  # 最新版本号
+      BUILD_TOOLS_VERSION: '34.0.0'
+      TARGET_SDK_VERSION: '34'
+    
     steps:
-      - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    # 1. 设置 Java 环境
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: ${{ env.JAVA_VERSION }}
+    
+    # 2. 设置 Android SDK
+    - name: Set up Android SDK
+      id: setup-android-sdk
+      uses: android-actions/setup-android@v3
+      with:
+        sdk-platform: android-${{ env.TARGET_SDK_VERSION }}
+        sdk-build-tools: ${{ env.BUILD_TOOLS_VERSION }}
+        sdk-path: ${{ github.workspace }}/android-sdk
+    
+    # 3. 接受 Android 许可协议（关键步骤）
+    - name: Accept Android licenses
+      run: |
+        echo "y" | ${{ github.workspace }}/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+        echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
+        echo "${{ github.workspace }}/android-sdk/platform-tools" >> $GITHUB_PATH
+    
+    # 4. 安装特定 Android SDK 组件
+    - name: Install Android SDK components
+      run: |
+        ${{ github.workspace }}/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+          "platforms;android-${{ env.TARGET_SDK_VERSION }}" \
+          "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
+          "platform-tools"
+    
+    # 5. 添加 local.properties 文件（Android Studio 兼容）
+    - name: Create local.properties
+      run: |
+        echo "sdk.dir=${{ github.workspace }}/android-sdk" > local.properties
+        cat local.properties
+    
+    # 6. 编译 APK
+    - name: Build with Gradle
+      run: |
+        chmod +x gradlew
+        ./gradlew assembleDebug
         
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          build-tools-version: '34.0.0'
-          platform-version: 'android-34'
-          
-      - name: Accept licenses
-        run: yes | ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --licenses
-        
-      - name: Create project structure
-        run: |
-          mkdir -p app/src/main/{java/com/nurgak/treble,res/layout,res/values}
-          # [此处插入上述创建文件的所有命令]
-          
-      - name: Build APK
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
-          
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: bluetooth-remote-app
-          path: app/build/outputs/apk/debug/app-debug.apk
+    # 7. 上传 APK 作为工件
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-app-apk
+        path: app/build/outputs/apk/debug/*.apk
+        retention-days: 30
+    
+    # 8. （可选）创建 GitHub Release 并上传 APK
+    - name: Release APK
+      if: success()
+      uses: softprops/action-gh-release@v2
+      with:
+        files: app/build/outputs/apk/debug/*.apk
+        body: "自动编译的 Android 应用 APK 文件"
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
