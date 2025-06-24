@@ -1,9 +1,8 @@
-  - name: Build APK
-  run: |
-    # 递归修复权限问题
-    find . -name "*.sh" -exec chmod +x {} \;
-    find . -name "*.bat" -exec chmod +x {} \;
-    chmod +x gradlew
-    
-    # 执行构建
-    ./gradlew assembleDebug
+# 正确的工作流文件开头
+name: Android Build  # 这是有效的名称定义
+
+on: [push, workflow_dispatch]  # 顶格写触发事件
+
+jobs:
+  build:  # 作业定义
+    runs-on: ubuntu-latest
