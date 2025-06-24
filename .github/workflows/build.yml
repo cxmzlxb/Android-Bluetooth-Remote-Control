@@ -1,51 +1,40 @@
-name: Build APK
+name: Build Bluetooth Remote
 
-on: 
-  push:
-    branches: [ main ]
-  workflow_dispatch:  # 允许手动触发
+on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出代码
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      # 2. 设置 JDK 17
-      - name: Set up JDK 17
+      - uses: actions/checkout@v4
+        
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-      
-      # 3. 接受 Android 许可证
-      - name: Accept Android licenses
+          
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          build-tools-version: '34.0.0'
+          platform-version: 'android-34'
+          
+      - name: Accept licenses
+        run: yes | ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --licenses
+        
+      - name: Create project structure
         run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-33"
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
-      
-      # 4. 编译 APK
+          mkdir -p app/src/main/{java/com/nurgak/treble,res/layout,res/values}
+          # [此处插入上述创建文件的所有命令]
+          
       - name: Build APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
-      
-      # 5. 使用替代方式上传 - 使用 v4 或直接上传到 Releases
-      - name: Upload APK to GitHub Releases
-        uses: softprops/action-gh-release@v2
-        with:
-          files: app/build/outputs/apk/debug/app-debug.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-      # 备选：使用更新后的 artifacts v4 方法
-      - name: Upload APK as artifact (v4)
+          ./gradlew assembleDebug --no-daemon
+          
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: bluetooth-remote-app
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 7
+          path: app/build/outputs/apk/debug/app-debug.apk
