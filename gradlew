@@ -1,19 +1,26 @@
-#!/bin/sh
+name: Java CI
 
-# 自动下载 Gradle 的便携式脚本
-# -----------------------------
-BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
-GRADLE_VERSION="8.3"
-GRADLE_ZIP_URL="https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
-GRADLE_DIR="${BASE_DIR}/gradle-${GRADLE_VERSION}"
+on: [push]
 
-# 如果未安装则下载
-if [ ! -d "$GRADLE_DIR" ]; then
-    echo "下载 Gradle ${GRADLE_VERSION}..."
-    curl -L "$GRADLE_ZIP_URL" -o gradle.zip
-    unzip -q gradle.zip
-    rm gradle.zip
-fi
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-# 执行构建
-exec "${GRADLE_DIR}/bin/gradle" "$@"
+    steps:
+    - uses: actions/checkout@v4
+
+    # 设置Gradle环境，并指定Gradle版本
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v3
+      with:
+        gradle-version: 8.4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    # 构建
+    - name: Build
+      run: gradle build
