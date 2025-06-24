@@ -1,82 +1,52 @@
-name: Build Android App
+name: Android CI
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:  # 允许手动触发
+on: [push, pull_request]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      JAVA_VERSION: '17'
-      ANDROID_SDK_VERSION: '9477386'  # 最新版本号
-      BUILD_TOOLS_VERSION: '34.0.0'
-      TARGET_SDK_VERSION: '34'
-    
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
+
+    strategy:
+      matrix:
+        java-version: [17]
+        android-build-tools: ['34.0.0']
+        target-sdk: [34]
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    # 1. 设置 Java 环境
-    - name: Set up JDK
+    - uses: actions/checkout@v4
+      
+    - name: Set up Java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: ${{ env.JAVA_VERSION }}
-    
-    # 2. 设置 Android SDK
-    - name: Set up Android SDK
-      id: setup-android-sdk
+        java-version: ${{ matrix.java-version }}
+        
+    - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       with:
-        sdk-platform: android-${{ env.TARGET_SDK_VERSION }}
-        sdk-build-tools: ${{ env.BUILD_TOOLS_VERSION }}
-        sdk-path: ${{ github.workspace }}/android-sdk
-    
-    # 3. 接受 Android 许可协议（关键步骤）
-    - name: Accept Android licenses
-      run: |
-        echo "y" | ${{ github.workspace }}/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-        echo "ANDROID_HOME=${{ github.workspace }}/android-sdk" >> $GITHUB_ENV
-        echo "${{ github.workspace }}/android-sdk/platform-tools" >> $GITHUB_PATH
-    
-    # 4. 安装特定 Android SDK 组件
-    - name: Install Android SDK components
-      run: |
-        ${{ github.workspace }}/android-sdk/cmdline-tools/latest/bin/sdkmanager \
-          "platforms;android-${{ env.TARGET_SDK_VERSION }}" \
-          "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
-          "platform-tools"
-    
-    # 5. 添加 local.properties 文件（Android Studio 兼容）
-    - name: Create local.properties
-      run: |
-        echo "sdk.dir=${{ github.workspace }}/android-sdk" > local.properties
-        cat local.properties
-    
-    # 6. 编译 APK
-    - name: Build with Gradle
-      run: |
-        chmod +x gradlew
-        ./gradlew assembleDebug
+        sdk-path: ${{ env.ANDROID_SDK_ROOT }}
+        sdk-platform: android-${{ matrix.target-sdk }}
+        sdk-build-tools: ${{ matrix.android-build-tools }}
+        sdk-licenses: true  # 自动接受许可证
         
-    # 7. 上传 APK 作为工件
-    - name: Upload APK
+    - name: Build APK
+      run: |
+        # 创建必要的本地文件
+        echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+        echo "ndk.dir=$ANDROID_SDK_ROOT/ndk/25.1.8937393" >> local.properties
+        
+        # 执行编译
+        ./gradlew assembleDebug --stacktrace
+        
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: android-app-apk
-        path: app/build/outputs/apk/debug/*.apk
+        name: android-app
+        path: |
+          app/build/outputs/apk/**/*.apk
+          app/build/outputs/mapping/release/mapping.txt
+        if-no-files-found: error
         retention-days: 30
-    
-    # 8. （可选）创建 GitHub Release 并上传 APK
-    - name: Release APK
-      if: success()
-      uses: softprops/action-gh-release@v2
-      with:
-        files: app/build/outputs/apk/debug/*.apk
-        body: "自动编译的 Android 应用 APK 文件"
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
