@@ -1,41 +1,9 @@
-name: Verified Bluetooth Build
-
-on: [push]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
+  - name: Build APK
+  run: |
+    # 递归修复权限问题
+    find . -name "*.sh" -exec chmod +x {} \;
+    find . -name "*.bat" -exec chmod +x {} \;
+    chmod +x gradlew
     
-    - name: Setup Gradle 8.4
-      uses: gradle/gradle-build-action@v2
-      with:
-        gradle-version: 8.4
-    
-    - name: Setup Android
-      uses: android-actions/setup-android@v3
-      with:
-        build-tools-version: '34.0.0'
-        platform-version: 'android-34'
-        sdk-licenses: true
-    
-    - name: Build APK
-      run: |
-        # 如果包装器不存在则创建
-        if [ ! -f "gradlew" ]; then
-          gradle wrapper --gradle-version=8.4
-          chmod +x gradlew
-        fi
-        
-        # 设置 SDK 路径
-        echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-        
-        # 执行构建
-        ./gradlew assembleDebug
-        
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: bluetooth-remote
-        path: app/build/outputs/apk/debug/*.apk
+    # 执行构建
+    ./gradlew assembleDebug
