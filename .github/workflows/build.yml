@@ -1,52 +1,62 @@
-name: Android CI
+name: Android Build
 
-on: [push, pull_request]
+on: [push, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
-
-    strategy:
-      matrix:
-        java-version: [17]
-        android-build-tools: ['34.0.0']
-        target-sdk: [34]
-
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
       
-    - name: Set up Java
+    - name: Fix permissions (关键修复)
+      run: |
+        # 修复 gradlew 权限
+        if [ -f "gradlew" ]; then
+          chmod +x gradlew
+        else
+          echo "gradlew not found, creating..."
+          ./gradle-8.3/bin/gradle wrapper --gradle-version 8.3
+          chmod +x gradlew
+        fi
+        
+        # 修复其他文件权限
+        find . -name "*.sh" -exec chmod +x {} \;
+        ls -l gradlew
+        
+    - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
-        java-version: ${{ matrix.java-version }}
+        java-version: '17'
         
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       with:
-        sdk-path: ${{ env.ANDROID_SDK_ROOT }}
-        sdk-platform: android-${{ matrix.target-sdk }}
-        sdk-build-tools: ${{ matrix.android-build-tools }}
+        build-tools-version: '34.0.0'
+        platform-version: 'android-34'
         sdk-licenses: true  # 自动接受许可证
         
-    - name: Build APK
+    - name: Create local.properties
       run: |
-        # 创建必要的本地文件
         echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
         echo "ndk.dir=$ANDROID_SDK_ROOT/ndk/25.1.8937393" >> local.properties
+        cat local.properties
         
-        # 执行编译
-        ./gradlew assembleDebug --stacktrace
+    - name: Build with Gradle
+      run: |
+        # 确保权限正确
+        chmod +x gradlew
         
-    - name: Upload artifacts
+        # 执行构建
+        ./gradlew assembleDebug --stacktrace --no-daemon
+        
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: android-app
-        path: |
-          app/build/outputs/apk/**/*.apk
-          app/build/outputs/mapping/release/mapping.txt
-        if-no-files-found: error
+        name: bluetooth-app
+        path: app/build/outputs/apk/debug/*.apk
         retention-days: 30
