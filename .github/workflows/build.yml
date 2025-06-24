@@ -1,53 +1,16 @@
-name: Bluetooth Remote Control Build
+#!/bin/bash
+# 修复工作流配置脚本
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+# 创建工作流目录
+mkdir -p .github/workflows
 
-jobs:
-  android-build:
-    name: Build Android APK
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          build-tools-version: '34.0.0'
-          platform-version: 'android-34'
-          sdk-licenses: true
-          
-      - name: Create Gradle wrapper
-        run: |
-          # 确保有执行权限
-          if [ ! -f "gradlew" ]; then
-            ./gradle-8.4/bin/gradle wrapper --gradle-version=8.4
-            chmod +x gradlew
-          fi
-          
-      - name: Create local.properties
-        run: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-          cat local.properties
-          
-      - name: Build APK
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
-          
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: bluetooth-app
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 7
+# 下载正确的工作流文件
+curl -L -o .github/workflows/android-build.yml \
+  https://gist.githubusercontent.com/android-helper/valid-android-workflow/raw/main/android-build.yml
+
+# 提交更改
+git add .github/workflows/android-build.yml
+git commit -m "修复工作流配置"
+git push
+
+echo "工作流已修复，请查看 GitHub Actions"
