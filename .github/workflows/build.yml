@@ -9,25 +9,18 @@ jobs:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       
-    - name: Fix permissions (关键修复)
+    - name: Fix Gradle files
       run: |
-        # 修复 gradlew 权限
-        if [ -f "gradlew" ]; then
-          chmod +x gradlew
-        else
-          echo "gradlew not found, creating..."
-          ./gradle-8.3/bin/gradle wrapper --gradle-version 8.3
-          chmod +x gradlew
-        fi
+        # 修复所有非法注释
+        find . -name "*.gradle" -exec sed -i 's/^#/\/\//g' {} \;
+        find . -name "*.gradle" -exec sed -i 's/#.*//g' {} \;
         
-        # 修复其他文件权限
-        find . -name "*.sh" -exec chmod +x {} \;
-        ls -l gradlew
+        # 验证 settings.gradle
+        cat settings.gradle
         
-    - name: Set up JDK 17
+    - name: Setup Java
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
@@ -40,23 +33,20 @@ jobs:
         platform-version: 'android-34'
         sdk-licenses: true  # 自动接受许可证
         
-    - name: Create local.properties
-      run: |
-        echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-        echo "ndk.dir=$ANDROID_SDK_ROOT/ndk/25.1.8937393" >> local.properties
-        cat local.properties
-        
-    - name: Build with Gradle
+    - name: Fix permissions
       run: |
         # 确保权限正确
         chmod +x gradlew
+        chmod +r gradle/wrapper/gradle-wrapper.jar
+        sudo chmod -R a+rwx .
         
-        # 执行构建
+    - name: Build APK
+      run: |
+        echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
         ./gradlew assembleDebug --stacktrace --no-daemon
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: bluetooth-app
+        name: bluetooth-remote-app
         path: app/build/outputs/apk/debug/*.apk
-        retention-days: 30
